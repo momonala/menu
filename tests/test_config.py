@@ -23,7 +23,7 @@ runner = CliRunner()
 @pytest.mark.parametrize(
     "flag,expected_output",
     [
-        ("--project-name", "menu"),
+        ("--project-name", "whats-on-the-menu"),
         ("--project-version", "0.1.0"),
         ("--flask-port", "5011"),
         ("--max-upload-size-mb", "10"),
@@ -42,7 +42,7 @@ def test_config_all_returns_all_values():
     result = runner.invoke(app, ["--all"])
 
     assert result.exit_code == 0
-    assert "project_name=menu" in result.stdout
+    assert "project_name=whats-on-the-menu" in result.stdout
     assert "project_version=0.1.0" in result.stdout
     assert "flask_port=5011" in result.stdout
     assert "max_upload_size_mb=10" in result.stdout

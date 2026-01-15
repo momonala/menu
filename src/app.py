@@ -26,6 +26,7 @@ logging.basicConfig(
     format="[%(levelname)s] %(name)s: %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
+logging.getLogger("werkzeug").setLevel(logging.WARNING)
 
 project_root = Path(__file__).parent.parent
 app = Flask(
@@ -50,10 +51,10 @@ def status():
 
 @app.route("/api/translate", methods=["POST"])
 def translate_menu():
-    """Translate a menu image.
+    """Translate a menu image (without images).
 
     Returns:
-        JSON response with translated menu data or error message.
+        JSON response with translated menu data (dishes without image_urls).
     """
     if "image" not in request.files:
         return jsonify({"status": "error", "message": "No image file provided"}), 400
@@ -61,7 +62,6 @@ def translate_menu():
     file = request.files["image"]
     target_currency = request.form.get("currency", DEFAULT_TARGET_CURRENCY)
     model = request.form.get("model", DEFAULT_OPENAI_MODEL)
-    include_images = request.form.get("include_images", "true").lower() == "true"
     file_content = file.read()
     filename = file.filename
     image_path = None
@@ -73,25 +73,10 @@ def translate_menu():
     try:
         translation = translate_menu_image(image_path, target_currency, model)
 
+        # Return dishes without images - frontend will fetch them separately
         dishes_data = []
         for dish in translation.dishes:
-            if include_images:
-                try:
-                    search_results = cached_brave_search(
-                        dish.name, translation.source_language, BRAVE_API_KEY
-                    )
-                    if search_results:
-                        dish.image_urls = search_results
-                    else:
-                        placeholder_url = (
-                            f"https://via.placeholder.com/400x300?text={dish.name.replace(' ', '+')}"
-                        )
-                        dish.image_urls = [placeholder_url]
-                except ImageSearchError as e:
-                    logger.warning(f"Image search failed for '{dish.name}': {e}")
-                    dish.image_urls = None
-            else:
-                dish.image_urls = None
+            dish.image_urls = None
             dishes_data.append(dish.model_dump())
 
         return jsonify(
@@ -115,6 +100,55 @@ def translate_menu():
     finally:
         if image_path:
             image_path.unlink(missing_ok=True)
+
+
+@app.route("/api/fetch-images", methods=["POST"])
+def fetch_images():
+    """Fetch images for dishes.
+
+    Expected JSON body:
+        {
+            "dishes": [{"name": "Dish Name", ...}, ...],
+            "language": "English",
+            "include_images": true
+        }
+
+    Returns:
+        JSON response with image URLs for each dish.
+    """
+    data = request.get_json()
+    if not data:
+        return jsonify({"status": "error", "message": "No JSON data provided"}), 400
+
+    dishes = data.get("dishes", [])
+    language = data.get("language", "English")
+    include_images = data.get("include_images", True)
+
+    if not include_images:
+        return jsonify(
+            {"status": "success", "images": {dish.get("name"): None for dish in dishes if dish.get("name")}}
+        )
+
+    images_data = {}
+    for dish in dishes:
+        dish_name = dish.get("name")
+        if not dish_name:
+            continue
+
+        try:
+            search_results = cached_brave_search(dish_name, language, BRAVE_API_KEY)
+            if search_results:
+                images_data[dish_name] = search_results
+            else:
+                placeholder_url = f"https://via.placeholder.com/400x300?text={dish_name.replace(' ', '+')}"
+                images_data[dish_name] = [placeholder_url]
+        except ImageSearchError as e:
+            logger.warning(f"Image search failed for '{dish_name}': {e}")
+            images_data[dish_name] = None
+
+    dishes_with_images = [dish for dish in images_data.values() if dish]
+    logger.info(f"Found {len(dishes_with_images)}/{len(images_data)} dishes with images")
+    return jsonify({"status": "success", "images": images_data})
 
 
 def main():

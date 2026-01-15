@@ -3,7 +3,7 @@
  After=multi-user.target
 
  [Service]
- WorkingDirectory=/home/mnalavadi/menu
+ WorkingDirectory=/home/mnalavadi/whats-on-the-menu
  Type=idle
  ExecStart=/home/mnalavadi/.local/bin/uv run app
  User=mnalavadi

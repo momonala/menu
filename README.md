@@ -1,7 +1,6 @@
 # What's On the Menu?
 
 > **Purpose**: Translate menu photos from foreign languages to English with dish explanations, pronunciations, images, and price conversions
-> **Status**: ACTIVE | Last Updated: 2026 January
 
 ## What This Solves
 
@@ -19,8 +18,11 @@ Version-controlled settings in `[tool.config]`:
 [tool.config]
 flask_port = 5011
 max_upload_size_mb = 10
-supported_image_formats = ["jpg", "jpeg", "png", "webp"]
+default_target_currency = "EUR"
+default_openai_model = "gpt-5-mini"
 ```
+
+Supported image formats (hardcoded in `src/image_validation.py`): `jpg`, `jpeg`, `png`, `webp`
 
 ### 2. Secrets (src/values.py - Git-Ignored)
 
@@ -35,9 +37,11 @@ BRAVE_API_KEY = "BSA..."
 ### View Config
 
 ```bash
-uv run config --all        # Show all non-secret config
-uv run config --flask-port # Get specific value
-uv run config --help       # See all options
+uv run config --all                    # Show all non-secret config
+uv run config --flask-port             # Get specific value
+uv run config --default-target-currency # Get default currency
+uv run config --default-openai-model    # Get default model
+uv run config --help                    # See all options
 ```
 
 ## Quick Start
@@ -61,16 +65,22 @@ Server runs at [http://localhost:5011](http://localhost:5011)
 
 ### Mental Model
 
-Stateless web application processing menu images through a pipeline:
+Stateless web application processing menu images through a two-stage pipeline:
+
+**Stage 1: Translation**
 
 1. User uploads menu image or takes photo with camera
 2. Image validated (size, format)
 3. OpenAI Vision API extracts and translates menu items with prices
 4. Currency conversion applied if needed
-5. Brave Image Search API fetches multiple images per dish
-6. Results returned with translations, pronunciations, descriptions, images, and converted prices
+5. Translation results returned immediately (without images)
 
-Image search uses abstract base class pattern, allowing provider swapping (Brave, SerpAPI) without changing business logic.
+**Stage 2: Image Fetching (Optional)**
+6. If images are enabled, frontend requests images for each dish separately
+7. Brave Image Search API fetches multiple images per dish (cached)
+8. Images displayed as they become available
+
+This two-stage approach allows users to see translation results quickly, while images load in the background.
 
 ```mermaid
 flowchart TB
@@ -86,7 +96,7 @@ flowchart TB
     subgraph External
         OpenAI[OpenAI API]
         BraveAPI[Brave Image Search API]
-        ForexAPI[Exchange Rate API]
+        ForexAPI[exchangerate-api.io]
     end
     
     Browser -->|POST /api/translate| Flask
@@ -94,41 +104,33 @@ flowchart TB
     OpenAIService --> OpenAI
     Flask --> ForexService
     ForexService --> ForexAPI
+    Flask -->|JSON Response (no images)| Browser
+    Browser -->|POST /api/fetch-images| Flask
     Flask --> ImageSearchService
     ImageSearchService --> BraveAPI
-    Flask -->|JSON Response| Browser
+    Flask -->|JSON Response (images)| Browser
 ```
 
 ### Data Flow
+
+**Stage 1: Translation**
 
 1. User uploads menu image or takes photo via web interface
 2. Flask route validates image (size, format)
 3. OpenAI Vision API processes image, returns structured JSON with translated dishes, prices, and currency
 4. Forex service converts prices to target currency if needed
-5. For each dish, Brave Image Search fetches multiple representative images (cached)
-6. Results formatted with translations, pronunciations, descriptions, images, and converted prices
-7. Uploaded image cleaned up after processing
+5. Translation results returned to frontend (without images)
+6. Uploaded image cleaned up after processing
 
-**Key Decisions**: Abstract base class for image search enables provider swapping. Flask chosen for simplicity. No database needed for stateless design. Caching used for image search and forex rates to reduce API calls.
-
-## Tech Stack & Why
-
-
-| Technology             | Purpose              | Why This Choice                                   |
-| ---------------------- | -------------------- | ------------------------------------------------- |
-| Python 3.12+           | Runtime              | Modern type hints, pattern matching               |
-| Flask                  | Web framework        | Lightweight, simple static file serving           |
-| OpenAI API             | Vision & Translation | GPT-4 Vision provides accurate menu analysis      |
-| Brave Image Search API | Dish images          | Multiple images per dish, cached results          |
-| Pydantic               | Data validation      | Type-safe models for API responses                |
-| Tailwind CSS           | Styling              | Utility-first, mobile-responsive, CDN-based       |
-| Vanilla JS             | Frontend logic       | No build step, native-like scrolling and gestures |
-
+**Stage 2: Image Fetching (if enabled)**
+7. Frontend sends separate request to `/api/fetch-images` for each dish
+8. Brave Image Search fetches multiple representative images per dish (cached)
+9. Images displayed as they become available
 
 ## Project Structure
 
 ```
-menu/
+whats-on-the-menu/
 ├── src/
 │   ├── app.py                    # Flask app & routes
 │   ├── config.py                 # Configuration management
@@ -137,10 +139,8 @@ menu/
 │   ├── image_validation.py       # Image upload validation
 │   ├── services/
 │   │   ├── __init__.py
-│   │   ├── openai_service.py     # OpenAI Vision API integration
-│   │   ├── image_search.py       # Abstract base class
-│   │   ├── image_search_brave.py # Brave implementation
-│   │   ├── image_search_serpapi.py # SerpAPI implementation
+│   │   ├── openai_service.py      # OpenAI Vision API integration
+│   │   ├── image_search_brave.py # Brave Image Search implementation
 │   │   └── forex_service.py      # Currency conversion
 ├── static/
 │   ├── js/
@@ -158,19 +158,6 @@ menu/
 ├── pyproject.toml                # Dependencies & config
 └── README.md                     # This file
 ```
-
-**Organization Logic**: Services separated by concern. Image search uses abstract base class for extensibility. Forex service handles currency conversion. Frontend includes camera support and native-like gesture handling.
-
-## Key Concepts
-
-
-| Concept                                  | Description                                                                     | Why It Matters                                                              |
-| ---------------------------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| **Abstract Base Class for Image Search** | `ImageSearchService` defines interface, `BraveImageSearchService` implements it | Allows swapping providers (SerpAPI, others) without changing business logic |
-| **Caching**                              | Image search and forex rates cached using joblib Memory                         | Reduces API calls, improves response time, lowers costs                     |
-| **Pydantic Models**                      | Type-safe data validation for API responses                                     | Ensures data integrity, provides clear error messages                       |
-| **Stateless Design**                     | No database, uploaded images deleted after processing                           | Keeps implementation simple, no state management needed                     |
-
 
 ## Data Models
 
@@ -196,16 +183,17 @@ MenuTranslation
 
 **Validation Rules**: Images must be <10MB, formats: jpg, jpeg, png, webp. OpenAI response must contain valid JSON with required fields.
 
-**Transformation Logic**: OpenAI response parsed into Pydantic models. Currency conversion applied if original currency differs from target. Multiple images fetched per dish via cached Brave search.
+**Transformation Logic**: OpenAI response parsed into Pydantic models. Currency conversion applied if original currency differs from target. Images fetched separately via `/api/fetch-images` endpoint using cached Brave search (optional, can be disabled in settings).
 
 ## API Endpoints
 
 
-| Endpoint         | Method | Description                        |
-| ---------------- | ------ | ---------------------------------- |
-| `/`              | GET    | Main page with upload interface    |
-| `/api/translate` | POST   | Upload menu image, get translation |
-| `/status`        | GET    | Health check                       |
+| Endpoint            | Method | Description                                    |
+| ------------------- | ------ | ---------------------------------------------- |
+| `/`                 | GET    | Main page with upload interface                |
+| `/api/translate`    | POST   | Upload menu image, get translation (no images) |
+| `/api/fetch-images` | POST   | Fetch images for dishes                        |
+| `/status`           | GET    | Health check                                   |
 
 
 ### POST /api/translate
@@ -221,7 +209,7 @@ curl -X POST http://localhost:5011/api/translate \
   -F "model=gpt-5-mini"
 ```
 
-**Response**:
+**Response** (note: `image_urls` is always `null` in this endpoint):
 
 ```json
 {
@@ -237,11 +225,41 @@ curl -X POST http://localhost:5011/api/translate \
         "english_name": "Valencian Paella",
         "description": "Traditional Spanish rice dish with seafood, saffron, and vegetables.",
         "pronunciation": "pah-EH-yah vah-len-see-AH-nah",
-        "image_urls": ["https://example.com/paella1.jpg", "https://example.com/paella2.jpg"],
+        "image_urls": null,
         "original_text": "Paella Valenciana",
         "price": "€18.50",
         "converted_price": 19.98
       }
+    ]
+  }
+}
+```
+
+### POST /api/fetch-images
+
+**Request**: JSON body with `dishes` array, `language`, and optional `include_images` boolean
+
+**Example**:
+
+```bash
+curl -X POST http://localhost:5011/api/fetch-images \
+  -H "Content-Type: application/json" \
+  -d '{
+    "dishes": [{"name": "Paella Valenciana"}],
+    "language": "Spanish",
+    "include_images": true
+  }'
+```
+
+**Response**:
+
+```json
+{
+  "status": "success",
+  "images": {
+    "Paella Valenciana": [
+      "https://example.com/paella1.jpg",
+      "https://example.com/paella2.jpg"
     ]
   }
 }
@@ -291,4 +309,6 @@ For production, consider:
 - Rate limiting
 - Monitoring and logging
 - HTTPS/SSL certificates
+- Image CDN for serving cached images
+- Request timeout handling for long-running image fetches
 

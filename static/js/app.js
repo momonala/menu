@@ -82,6 +82,8 @@ const elements = {
     galleryNext: document.getElementById("gallery-next"),
     galleryCurrent: document.getElementById("gallery-current"),
     galleryTotal: document.getElementById("gallery-total"),
+    progressMessage: document.getElementById("progress-message"),
+    progressHint: document.getElementById("progress-hint"),
 };
 
 // ============================================================================
@@ -222,6 +224,22 @@ function hideProgress() {
     elements.uploadProgress.classList.add("hidden");
     elements.uploadArea.setAttribute("aria-busy", "false");
     stopTimer();
+    // Reset progress message and hint to default
+    updateProgressMessage("Processing menu...", "Grab a drink while you wait...");
+}
+
+/**
+ * Update the progress message text.
+ * @param {string} message - Progress message to display
+ * @param {string} [hint] - Optional hint text to display below (supports HTML)
+ */
+function updateProgressMessage(message, hint) {
+    if (elements.progressMessage) {
+        elements.progressMessage.textContent = message;
+    }
+    if (elements.progressHint && hint !== undefined) {
+        elements.progressHint.innerHTML = hint;
+    }
 }
 
 /**
@@ -400,16 +418,17 @@ async function retryWithBackoff(fn, attempts = CONFIG.RETRY_ATTEMPTS, delay = CO
 }
 
 /**
- * Upload and translate menu image.
+ * Upload and translate menu image (stage 1 - translation only).
  * @param {File} file - Image file to upload
- * @returns {Promise<Object>} Translation result
+ * @returns {Promise<Object>} Translation result (without images)
  */
 async function translateMenu(file) {
+    updateProgressMessage("Translating menu with AI...", "Order a drink, this'll be a minute or two.");
+    
     const formData = new FormData();
     formData.append("image", file);
     formData.append("currency", getCurrency());
     formData.append("model", getModel());
-    formData.append("include_images", String(getIncludeImages()));
 
     const response = await fetch("/api/translate", {
         method: "POST",
@@ -433,7 +452,70 @@ async function translateMenu(file) {
 }
 
 /**
- * Handle file upload with validation and retry logic.
+ * Fetch images for dishes with progress updates (stage 2).
+ * @param {Array} dishes - Array of dish objects
+ * @param {string} language - Source language for search
+ * @param {boolean} includeImages - Whether to fetch images
+ * @returns {Promise<Object>} Map of dish names to image URL arrays
+ */
+async function fetchImagesForDishes(dishes, language, includeImages) {
+    if (!includeImages || dishes.length === 0) {
+        return Object.fromEntries(dishes.map(dish => [dish.name, null]));
+    }
+
+    const totalDishes = dishes.length;
+    const imagesData = {};
+
+    // Fetch images one by one to show progress
+    for (let i = 0; i < dishes.length; i++) {
+        const dish = dishes[i];
+        updateProgressMessage(
+            `Fetching images for ${i + 1}/${totalDishes} dishes...`,
+            `We need another minute... I bet you wish you learned how to speak ${language} now, eh?<br>Image search can be disabled in Settings.`
+        );
+
+        try {
+            const response = await fetch("/api/fetch-images", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    dishes: [dish],
+                    language: language,
+                    include_images: true,
+                }),
+                signal: state.abortController.signal,
+            });
+
+            if (!response.ok) {
+                console.warn(`Failed to fetch images for ${dish.name}: ${response.status}`);
+                imagesData[dish.name] = null;
+                continue;
+            }
+
+            const data = await response.json();
+            if (data.status === "success") {
+                imagesData[dish.name] = data.images[dish.name] || null;
+            } else {
+                imagesData[dish.name] = null;
+            }
+        } catch (error) {
+            if (error.name === "AbortError") {
+                throw error;
+            }
+            console.warn(`Image fetch failed for ${dish.name}:`, error.message);
+            imagesData[dish.name] = null;
+        }
+    }
+
+    return imagesData;
+}
+
+/**
+ * Handle file upload with validation and two-stage processing.
+ * Stage 1: Translation (menu text extraction)
+ * Stage 2: Image fetching (with progress updates)
  * @param {File} file - File to process
  */
 async function handleFile(file) {
@@ -461,8 +543,34 @@ async function handleFile(file) {
     showProgress();
 
     try {
-        const data = await retryWithBackoff(() => translateMenu(file));
-        displayResults(data);
+        // Stage 1: Translation
+        const translationData = await retryWithBackoff(() => translateMenu(file));
+
+        // Stage 2: Fetch images (if enabled)
+        const includeImages = getIncludeImages();
+        if (includeImages && translationData.dishes.length > 0) {
+            try {
+                const imagesData = await fetchImagesForDishes(
+                    translationData.dishes,
+                    translationData.source_language,
+                    includeImages
+                );
+
+                // Merge image URLs into dishes
+                translationData.dishes = translationData.dishes.map(dish => ({
+                    ...dish,
+                    image_urls: imagesData[dish.name] || null,
+                }));
+            } catch (imageError) {
+                if (imageError.name === "AbortError") {
+                    throw imageError;
+                }
+                // Image fetching failed, but we still have translation data
+                console.warn("Image fetching failed, displaying results without images:", imageError);
+            }
+        }
+
+        displayResults(translationData);
     } catch (error) {
         if (error.name === "AbortError") {
             return;
