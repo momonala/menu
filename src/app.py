@@ -146,8 +146,6 @@ def fetch_images():
             logger.warning(f"Image search failed for '{dish_name}': {e}")
             images_data[dish_name] = None
 
-    dishes_with_images = [dish for dish in images_data.values() if dish]
-    logger.info(f"Found {len(dishes_with_images)}/{len(images_data)} dishes with images")
     return jsonify({"status": "success", "images": images_data})
 
 

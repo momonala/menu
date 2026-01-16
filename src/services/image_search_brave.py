@@ -293,6 +293,6 @@ def cached_brave_search(dish_name: str, language: str, api_key: str) -> list[str
     if not image_urls:
         logger.warning(f"No valid image URLs for {params=}")
 
-    logger.debug(f"{len(image_urls)} images found for Brave Image Search: {params=}")
+    logger.info(f"{len(image_urls)} images found for Brave Image Search: {params=}")
     time.sleep(0.7)
     return image_urls

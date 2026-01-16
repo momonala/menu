@@ -14,6 +14,7 @@ class OpenAIDishResponse(BaseModel):
     original_text: str
     price: str | None = None
     price_numeric: float | None = None
+    allergies: list[str] = []
 
 
 class OpenAIResponse(BaseModel):
@@ -36,6 +37,7 @@ class MenuDish(BaseModel):
     pronunciation: str
     price: str | None = None
     converted_price: float | None = None
+    allergies: list[str] = []
 
 
 class MenuTranslation(BaseModel):

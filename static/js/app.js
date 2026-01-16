@@ -28,6 +28,44 @@ const CONFIG = {
 };
 
 // ============================================================================
+// Allergy Icons (SVG)
+// ============================================================================
+
+const ALLERGY_ICONS = {
+    peanuts: {
+        label: "May contain peanuts",
+        svg: `<svg class="allergy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 2C8.5 2 6.5 4.5 6.5 7.5C6.5 9.5 7.5 11 9 12C7.5 13 6.5 14.5 6.5 16.5C6.5 19.5 8.5 22 12 22C15.5 22 17.5 19.5 17.5 16.5C17.5 14.5 16.5 13 15 12C16.5 11 17.5 9.5 17.5 7.5C17.5 4.5 15.5 2 12 2Z" />
+            <path d="M9 5.5C9.5 4.5 10.5 4 12 4C13.5 4 14.5 4.5 15 5.5" />
+            <path d="M8.5 7.5C9 8.5 10.5 9 12 9C13.5 9 15 8.5 15.5 7.5" />
+            <path d="M9 18.5C9.5 19.5 10.5 20 12 20C13.5 20 14.5 19.5 15 18.5" />
+            <path d="M8.5 16.5C9 15.5 10.5 15 12 15C13.5 15 15 15.5 15.5 16.5" />
+            <path d="M10 12L14 12" />
+        </svg>`,
+    },
+    gluten: {
+        label: "May contain gluten",
+        svg: `<svg class="allergy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 21V10" />
+            <path d="M12 10C12 10 8 8 8 5C8 5 10 6 12 6C14 6 16 5 16 5C16 8 12 10 12 10Z" />
+            <path d="M9 13C9 13 6 12 6 9" />
+            <path d="M15 13C15 13 18 12 18 9" />
+            <path d="M9 17C9 17 5 16 5 13" />
+            <path d="M15 17C15 17 19 16 19 13" />
+        </svg>`,
+    },
+    meat: {
+        label: "Contains meat",
+        svg: `<svg class="allergy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 12C4 7 8 4 14 4C18 4 20 6 20 10C20 16 16 20 10 20C6 20 4 17 4 12Z" />
+            <path d="M8 9C10 8 13 9 15 11" />
+            <path d="M7 13C9 12 12 13 14 15" />
+            <circle cx="16" cy="7" r="1.5" />
+        </svg>`,
+    },
+};
+
+// ============================================================================
 // State Management
 // ============================================================================
 
@@ -801,16 +839,20 @@ function createDishCard(dish, targetCurrency, originalCurrency, exchangeRate, in
 
     const imageHtml = createImageHtml(dish);
     const priceHtml = createPriceHtml(dish, targetCurrency, originalCurrency);
+    const allergyHtml = createAllergyHtml(dish);
 
     dishCard.innerHTML = `
         ${imageHtml}
         <div class="space-y-3">
-            <h3 class="text-2xl font-semibold text-gray-900 mb-1">${escapeHtml(dish.name)}</h3>
+            <div class="dish-header">
+                <h3 class="text-2xl font-semibold text-gray-900 mb-1">${escapeHtml(dish.name)}</h3>
+                ${allergyHtml}
+            </div>
             <p class="text-xl font-medium text-blue-600 mb-2">${escapeHtml(dish.english_name || dish.name)}</p>
             <p class="text-sm text-gray-500 italic mb-3 font-light">
                 <span class="font-medium">Pronounced:</span> ${escapeHtml(dish.pronunciation)}
             </p>
-            <p class="dish-description text-gray-700 mb-4 font-light">${escapeHtml(dish.description)}</p>
+            <p class="dish-description text-xs text-gray-700 mb-4 font-light">${escapeHtml(dish.description)}</p>
             ${priceHtml}
         </div>
     `;
@@ -852,6 +894,32 @@ function createImageHtml(dish) {
             <p class="text-gray-400 text-sm font-light">No image available</p>
         </div>
     `;
+}
+
+/**
+ * Create allergy icons HTML for dish card.
+ * @param {Object} dish - Dish data
+ * @returns {string} Allergy icons HTML string (empty if no allergies)
+ */
+function createAllergyHtml(dish) {
+    const allergies = dish.allergies || [];
+    if (allergies.length === 0) {
+        return "";
+    }
+
+    const icons = allergies
+        .filter((allergy) => ALLERGY_ICONS[allergy])
+        .map((allergy) => {
+            const icon = ALLERGY_ICONS[allergy];
+            return `<span class="allergy-badge" title="${escapeHtml(icon.label)}" aria-label="${escapeHtml(icon.label)}">${icon.svg}</span>`;
+        })
+        .join("");
+
+    if (!icons) {
+        return "";
+    }
+
+    return `<div class="allergy-icons">${icons}</div>`;
 }
 
 /**

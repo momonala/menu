@@ -138,6 +138,46 @@ body {
 }
 
 /* ============================================================================
+   Allergy Icons
+   ============================================================================ */
+
+.dish-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.allergy-icons {
+    display: flex;
+    gap: 0.375rem;
+    flex-shrink: 0;
+}
+
+.allergy-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 0.5rem;
+    background: #FEF3C7;
+    color: #B45309;
+    cursor: help;
+    transition: all var(--transition-fast);
+}
+
+.allergy-badge:hover {
+    background: #FDE68A;
+    transform: scale(1.1);
+}
+
+.allergy-icon {
+    width: 1rem;
+    height: 1rem;
+}
+
+/* ============================================================================
    Animations
    ============================================================================ */
 

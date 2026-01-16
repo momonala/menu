@@ -83,6 +83,7 @@ def build_prompt(target_currency: str) -> str:
 4. Include the original text from the menu
 5. Extract the price if visible (include currency symbol/number, or null if not available)
 6. If a price is found, identify the currency code (e.g., USD, EUR, GBP, JPY, etc.)
+7. Identify likely allergens from the following categories: "peanuts", "gluten", "meat". Only include allergens that are likely present based on the dish name and typical ingredients. Use an empty array if none apply.
 
 Return a JSON object with this structure:
 {
@@ -97,7 +98,8 @@ Return a JSON object with this structure:
       "pronunciation": "layman's pronunciation guide",
       "original_text": "original text from menu",
       "price": "price with currency symbol or null",
-      "price_numeric": numeric_price_value or null
+      "price_numeric": numeric_price_value or null,
+      "allergies": ["peanuts", "gluten", "meat"] or []
     }
   ]
 }
@@ -115,7 +117,8 @@ EXAMPLE RETURN JSON:
       "pronunciation": "bup non xao dong co",
       "original_text": "Bắp non xào đông cô  - .....20.000đ",
       "price": "20.000đ",
-      "price_numeric": 20000
+      "price_numeric": 20000,
+      "allergies": []
     }
   ]
 }
@@ -224,6 +227,7 @@ def translate_menu_image(
     # Get cached result (dict) and reconstruct Pydantic model
     cached_dict = _cached_translate(image_data, prompt, model)
     openai_response = OpenAIResponse.model_validate(cached_dict)
+    print(openai_response)
 
     logger.info(
         f"Number of dishes: {len(openai_response.dishes)}, Language: {openai_response.source_language}, Currency: {openai_response.original_currency}, Country: {openai_response.country}"
@@ -257,6 +261,7 @@ def translate_menu_image(
                 pronunciation=dish.pronunciation,
                 price=dish.price,
                 converted_price=converted_price,
+                allergies=dish.allergies,
             )
         )
 
