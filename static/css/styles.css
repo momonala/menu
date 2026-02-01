@@ -152,9 +152,11 @@ body {
     display: flex;
     gap: 0.375rem;
     flex-shrink: 0;
+    overflow: visible;
 }
 
 .allergy-badge {
+    position: relative;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -165,6 +167,34 @@ body {
     color: #B45309;
     cursor: help;
     transition: all var(--transition-fast);
+}
+
+.allergy-badge::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: calc(100% + 0.5rem);
+    left: 50%;
+    transform: translateX(-50%) scale(0.95);
+    padding: 0.375rem 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #78350f;
+    background: #FEF3C7;
+    border: 1px solid #FDE68A;
+    border-radius: 0.5rem;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity var(--transition-fast), visibility var(--transition-fast), transform var(--transition-fast);
+    pointer-events: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    z-index: 10;
+}
+
+.allergy-badge:hover::after {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) scale(1);
 }
 
 .allergy-badge:hover {
@@ -237,6 +267,39 @@ body {
 }
 
 /* ============================================================================
+   Settings Modal (mobile: fit viewport, scrollable)
+   ============================================================================ */
+
+.settings-modal-overlay {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    align-items: flex-start;
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+}
+
+@media (min-width: 768px) {
+    .settings-modal-overlay {
+        align-items: center;
+    }
+}
+
+.settings-modal-content {
+    max-height: calc(100vh - 2rem);
+    max-height: calc(100dvh - 2rem);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: auto;
+}
+
+@media (min-width: 768px) {
+    .settings-modal-content {
+        max-height: none;
+        overflow-y: visible;
+    }
+}
+
+/* ============================================================================
    Accessibility
    ============================================================================ */
 
@@ -295,6 +358,40 @@ body {
         touch-action: manipulation;
         -webkit-tap-highlight-color: rgba(0, 122, 255, 0.1);
     }
+}
+
+/* ============================================================================
+   Currency Correction Dropdown
+   ============================================================================ */
+
+.exchange-rate-wrapper {
+    position: relative;
+}
+
+.exchange-rate-trigger {
+    cursor: pointer;
+    font: inherit;
+}
+
+.exchange-rate-trigger:hover {
+    background: rgba(59, 130, 246, 0.15);
+}
+
+.currency-correction-dropdown {
+    max-height: 16rem;
+    overflow-y: auto;
+}
+
+.currency-correction-dropdown:not(.hidden) {
+    display: block;
+}
+
+.currency-correction-option:first-of-type {
+    border-radius: 0.75rem 0.75rem 0 0;
+}
+
+.currency-correction-option:last-of-type {
+    border-radius: 0 0 0.75rem 0.75rem;
 }
 
 /* ============================================================================

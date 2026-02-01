@@ -47,9 +47,9 @@
             </p>
         </header>
 
-        <div id="settings-modal" class="hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="settings-title">
-            <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8 fade-in" style="box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);">
-                <div class="flex items-center justify-between mb-8">
+        <div id="settings-modal" class="hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 settings-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+            <div class="settings-modal-content bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 fade-in" style="box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);">
+                <div class="flex items-center justify-between mb-5">
                     <h2 id="settings-title" class="text-3xl font-semibold text-gray-900">Settings</h2>
                     <button 
                         id="close-settings"
@@ -61,42 +61,29 @@
                         </svg>
                     </button>
                 </div>
-                <div class="space-y-6">
+                <div class="space-y-4">
                     <div>
-                        <label for="currency-select" class="block text-xs md:text-sm font-medium text-gray-700 mb-3">
+                        <label for="currency-select" class="block text-xs md:text-sm font-medium text-gray-700 mb-2">
                             Display Currency
                         </label>
                         <select 
                             id="currency-select"
-                            class="w-full px-4 py-3 border border-gray-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white transition-all"
+                            class="w-full px-4 py-2.5 border border-gray-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white transition-all"
                         >
-                            <option value="EUR">EUR - Euro</option>
-                            <option value="USD">USD - US Dollar</option>
-                            <option value="GBP">GBP - British Pound</option>
-                            <option value="JPY">JPY - Japanese Yen</option>
-                            <option value="CAD">CAD - Canadian Dollar</option>
-                            <option value="AUD">AUD - Australian Dollar</option>
-                            <option value="CHF">CHF - Swiss Franc</option>
-                            <option value="CNY">CNY - Chinese Yuan</option>
-                            <option value="INR">INR - Indian Rupee</option>
+                            <option value="">Loading…</option>
                         </select>
                     </div>
                     <div>
-                        <label for="model-select" class="block text-sm font-medium text-gray-700 mb-3">
+                        <label for="model-select" class="block text-sm font-medium text-gray-700 mb-2">
                             OpenAI Model
                         </label>
                         <select 
                             id="model-select"
-                            class="w-full px-4 py-3 border border-gray-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white transition-all"
+                            class="w-full px-4 py-2.5 border border-gray-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white transition-all"
                         >
-                            <option value="gpt-4.1-nano">GPT-4.1 nano - ~$0.01 per menu</option>
-                            <option value="gpt-5-mini">GPT-5 mini - ~$0.01 per menu (Recommended)</option>
-                            <option value="gpt-4.1-mini">GPT-4.1 mini - ~$0.02 per menu</option>
-                            <option value="gpt-5.2">GPT-5.2 - ~$0.06 per menu</option>
+                            <option value="gpt-5-mini">GPT-5 mini (~$0.01)</option>
+                            <option value="gpt-5.2">GPT-5.2 (~$0.06)</option>
                         </select>
-                        <p class="mt-2 text-xs text-gray-500">
-                            Estimated cost based on typical menu (~1K input, ~5K output tokens)
-                        </p>
                     </div>
                     <div>
                         <label class="flex items-center gap-3 cursor-pointer">
@@ -106,19 +93,19 @@
                                 class="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500 cursor-pointer"
                             >
                             <span class="text-sm font-medium text-gray-700">
-                                Include dish images
+                                Search for dish images
                             </span>
                         </label>
                         <p class="mt-1 ml-8 text-xs text-gray-500">
-                            Search and display images for each dish. This adds about 1 minute to the workflow, and results may be mixed for poorly indexed dishes or languages
+                            Adds about 1 minute to the workflow, and results may be mixed for poorly indexed dishes or languages
                         </p>
                     </div>
-                    <div class="border-t border-gray-200 pt-6">
-                        <h3 class="text-sm font-medium text-gray-700 mb-3">Allergy Information</h3>
-                        <p class="text-xs text-gray-500 mb-4">
-                            Allergy icons (peanuts, gluten, meat) are AI-generated estimates based on typical ingredients. They may not be accurate. Always verify with restaurant staff before ordering if you have allergies.
+                    <div class="border-t border-gray-200 pt-4">
+                        <h3 class="text-sm font-medium text-gray-700 mb-2">Allergy Information</h3>
+                        <p class="text-xs text-gray-500 mb-2">
+                            Allergy icons (peanuts, gluten, meat) are AI-generated estimates based on typical ingredients. They may not be accurate.
                         </p>
-                        <h3 class="text-sm font-medium text-gray-700 mb-3">About</h3>
+                        <h3 class="text-sm font-medium text-gray-700 mb-2">About</h3>
                         <a 
                             href="https://github.com/momonala/whats-on-the-menu"
                             target="_blank"
@@ -133,7 +120,7 @@
                     </div>
                     <button 
                         id="save-settings"
-                        class="apple-button w-full text-white font-medium py-3.5 px-6 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                        class="apple-button w-full text-white font-medium py-2.5 px-6 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                     >
                         Save Settings
                     </button>
@@ -222,7 +209,29 @@
                         <div class="flex flex-wrap items-center gap-2">
                             <span id="source-language" class="text-sm px-4 py-2 bg-blue-50 text-blue-700 rounded-full font-medium"></span>
                             <span id="dish-count" class="text-sm px-4 py-2 bg-blue-50 text-blue-700 rounded-full font-medium"></span>
-                            <span id="exchange-rate" class="text-sm px-4 py-2 bg-blue-50 text-blue-700 rounded-full font-medium hidden"></span>
+                            <div id="exchange-rate-wrapper" class="exchange-rate-wrapper relative hidden">
+                                <button
+                                    type="button"
+                                    id="exchange-rate-trigger"
+                                    class="exchange-rate-trigger inline-flex items-center gap-1.5 text-sm px-4 py-2 bg-blue-50 text-blue-700 rounded-full font-medium cursor-pointer border-0 transition-colors hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                                    aria-label="Correct menu currency"
+                                    aria-haspopup="listbox"
+                                    aria-expanded="false"
+                                >
+                                    <span id="exchange-rate-text"></span>
+                                    <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                    </svg>
+                                </button>
+                                <div
+                                    id="currency-correction-dropdown"
+                                    class="currency-correction-dropdown hidden absolute left-0 top-full mt-1 py-1 bg-white rounded-2xl shadow-lg border border-gray-200 min-w-[12rem] z-10"
+                                    role="listbox"
+                                    aria-label="Correct menu currency"
+                                >
+                                    <!-- Options populated by JS -->
+                                </div>
+                            </div>
                         </div>
                         <button 
                             id="new-upload-btn"

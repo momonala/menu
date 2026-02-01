@@ -36,6 +36,7 @@ class MenuDish(BaseModel):
     original_text: str
     pronunciation: str
     price: str | None = None
+    price_numeric: float | None = None
     converted_price: float | None = None
     allergies: list[str] = []
 

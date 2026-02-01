@@ -81,6 +81,8 @@ const state = {
     galleryIsDragging: false,
     galleryDragOffset: 0,
     galleryDragStartTime: null,
+    /** List of currency codes from /api/currencies (fetched on load). */
+    currencies: [],
 };
 
 // ============================================================================
@@ -99,7 +101,10 @@ const elements = {
     results: document.getElementById("results"),
     dishesContainer: document.getElementById("dishes-container"),
     sourceLanguage: document.getElementById("source-language"),
-    exchangeRate: document.getElementById("exchange-rate"),
+    exchangeRateWrapper: document.getElementById("exchange-rate-wrapper"),
+    exchangeRateTrigger: document.getElementById("exchange-rate-trigger"),
+    exchangeRateText: document.getElementById("exchange-rate-text"),
+    currencyCorrectionDropdown: document.getElementById("currency-correction-dropdown"),
     dishCount: document.getElementById("dish-count"),
     newUploadBtn: document.getElementById("new-upload-btn"),
     mainContainer: document.getElementById("main-container"),
@@ -226,11 +231,61 @@ function setIncludeImages(v) {
 }
 
 /**
- * Initialize settings selectors.
+ * Fetch supported currency codes from the API and store in state.currencies.
+ * @returns {Promise<void>}
+ */
+async function loadCurrencies() {
+    try {
+        const response = await fetch("/api/currencies");
+        if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            throw new Error(data.message || `Failed to load currencies: ${response.status}`);
+        }
+        const data = await response.json();
+        if (data.status === "success" && Array.isArray(data.currencies)) {
+            state.currencies = data.currencies;
+        } else {
+            state.currencies = [];
+        }
+    } catch (e) {
+        console.warn("Could not load currencies:", e.message);
+        state.currencies = [
+            { code: "EUR", name: "Euro" },
+            { code: "USD", name: "US Dollar" },
+            { code: "GBP", name: "British Pound" },
+            { code: "JPY", name: "Japanese Yen" },
+            { code: "CAD", name: "Canadian Dollar" },
+            { code: "AUD", name: "Australian Dollar" },
+            { code: "CHF", name: "Swiss Franc" },
+            { code: "CNY", name: "Chinese Yuan" },
+            { code: "INR", name: "Indian Rupee" },
+        ];
+    }
+}
+
+/**
+ * Initialize settings selectors. Populates currency select from state.currencies.
  */
 function initSettings() {
     if (elements.currencySelect) {
-        elements.currencySelect.value = getCurrency();
+        const saved = getCurrency();
+        elements.currencySelect.innerHTML = "";
+        if (state.currencies.length === 0) {
+            const opt = document.createElement("option");
+            opt.value = "";
+            opt.textContent = "Loading…";
+            elements.currencySelect.appendChild(opt);
+            elements.currencySelect.value = "";
+        } else {
+            for (const c of state.currencies) {
+                const opt = document.createElement("option");
+                opt.value = c.code;
+                opt.textContent = [c.emoji, `${c.code} - ${c.name}`].filter(Boolean).join(" ");
+                elements.currencySelect.appendChild(opt);
+            }
+            const hasSaved = state.currencies.some((c) => c.code === saved);
+            elements.currencySelect.value = hasSaved ? saved : CONFIG.DEFAULTS.CURRENCY;
+        }
     }
     if (elements.modelSelect) {
         elements.modelSelect.value = getModel();
@@ -711,25 +766,23 @@ function playBellSound() {
  * @param {string} currency - Currency code
  * @returns {string|null} Formatted price string
  */
+/**
+ * Get currency symbol from loaded currencies (from API / babel). Fallback to code + space.
+ * @param {string} currency - Currency code (e.g. USD, THB)
+ * @returns {string} Symbol for display (e.g. $, ฿)
+ */
+function getCurrencySymbol(currency) {
+    const c = state.currencies.find((x) => x.code === currency);
+    return (c && c.symbol) || currency + " ";
+}
+
 function formatPrice(amount, currency) {
     if (amount === null || amount === undefined) {
         return null;
     }
 
-    const symbols = {
-        EUR: "€",
-        USD: "$",
-        GBP: "£",
-        JPY: "¥",
-        CAD: "C$",
-        AUD: "A$",
-        CHF: "CHF",
-        CNY: "¥",
-        INR: "₹",
-    };
-
-    const symbol = symbols[currency] || currency;
-    const isIntegerCurrency = currency === "JPY" || currency === "INR";
+    const symbol = getCurrencySymbol(currency);
+    const isIntegerCurrency = ["JPY", "INR", "KRW", "VND", "IDR"].includes(currency);
 
     if (isIntegerCurrency) {
         return `${symbol}${Math.round(amount).toLocaleString()}`;
@@ -757,10 +810,14 @@ function displayResults(data) {
 
     if (exchangeRate && originalCurrency && originalCurrency !== targetCurrency) {
         const rateText = `1 ${originalCurrency} = ${exchangeRate.toFixed(6)} ${targetCurrency}`;
-        elements.exchangeRate.textContent = rateText;
-        elements.exchangeRate.classList.remove("hidden");
+        if (elements.exchangeRateText) elements.exchangeRateText.textContent = rateText;
+        if (elements.exchangeRateWrapper) {
+            elements.exchangeRateWrapper.classList.remove("hidden");
+            buildCurrencyDropdownOptions(originalCurrency);
+        }
+        closeCurrencyDropdown();
     } else {
-        elements.exchangeRate.classList.add("hidden");
+        if (elements.exchangeRateWrapper) elements.exchangeRateWrapper.classList.add("hidden");
     }
 
     // Update dish count
@@ -819,7 +876,107 @@ function startNewUpload() {
     hideResults();
     hideError();
     restoreOriginalLayout();
+    closeCurrencyDropdown();
     window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+// ============================================================================
+// Currency Correction Dropdown
+// ============================================================================
+
+function isCurrencyDropdownOpen() {
+    return elements.currencyCorrectionDropdown && !elements.currencyCorrectionDropdown.classList.contains("hidden");
+}
+
+function openCurrencyDropdown() {
+    if (!elements.currencyCorrectionDropdown || !elements.exchangeRateTrigger) return;
+    elements.currencyCorrectionDropdown.classList.remove("hidden");
+    elements.exchangeRateTrigger.setAttribute("aria-expanded", "true");
+    const firstOption = elements.currencyCorrectionDropdown.querySelector(".currency-correction-option");
+    if (firstOption) firstOption.focus();
+}
+
+function closeCurrencyDropdown() {
+    if (!elements.currencyCorrectionDropdown || !elements.exchangeRateTrigger) return;
+    elements.currencyCorrectionDropdown.classList.add("hidden");
+    elements.exchangeRateTrigger.setAttribute("aria-expanded", "false");
+}
+
+function toggleCurrencyDropdown() {
+    if (isCurrencyDropdownOpen()) {
+        closeCurrencyDropdown();
+    } else {
+        openCurrencyDropdown();
+    }
+}
+
+/**
+ * Populate the currency correction dropdown with options.
+ * @param {string} currentOriginal - Currently detected original currency code
+ */
+function buildCurrencyDropdownOptions(currentOriginal) {
+    if (!elements.currencyCorrectionDropdown) return;
+    elements.currencyCorrectionDropdown.innerHTML = "";
+    for (const c of state.currencies) {
+        const option = document.createElement("button");
+        option.type = "button";
+        option.className =
+            "currency-correction-option w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 focus:outline-none focus:bg-blue-50 focus:ring-0";
+        option.setAttribute("role", "option");
+        option.setAttribute("data-currency", c.code);
+        option.textContent = [c.emoji, `${c.code} - ${c.name}`].filter(Boolean).join(" ");
+        if (c.code === currentOriginal) {
+            option.setAttribute("aria-selected", "true");
+            option.classList.add("font-medium", "text-blue-700");
+        }
+        elements.currencyCorrectionDropdown.appendChild(option);
+    }
+}
+
+/**
+ * Apply corrected menu currency: fetch new rate, update state, re-render.
+ * @param {string} selectedCurrency - Currency code user selected
+ */
+async function applyCurrencyCorrection(selectedCurrency) {
+    const data = state.lastTranslationData;
+    if (!data || !data.original_currency || !data.dishes) return;
+
+    const targetCurrency = data.target_currency || getCurrency();
+    if (selectedCurrency === targetCurrency) {
+        data.original_currency = selectedCurrency;
+        data.exchange_rate_to_eur = 1.0;
+    } else {
+        try {
+            const response = await fetch(
+                `/api/exchange-rate?from=${encodeURIComponent(selectedCurrency)}&to=${encodeURIComponent(targetCurrency)}`
+            );
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({}));
+                showError(err.message || "Failed to get exchange rate.");
+                return;
+            }
+            const result = await response.json();
+            if (result.status !== "success" || result.rate == null) {
+                showError("Failed to get exchange rate.");
+                return;
+            }
+            data.original_currency = selectedCurrency;
+            data.exchange_rate_to_eur = result.rate;
+        } catch (e) {
+            showError("Failed to get exchange rate. Please try again.");
+            return;
+        }
+    }
+
+    const rate = data.exchange_rate_to_eur;
+    for (const dish of data.dishes) {
+        const num = dish.price_numeric;
+        dish.converted_price = num != null && rate != null ? num * rate : null;
+    }
+
+    closeCurrencyDropdown();
+    displayResults(data);
+    hideError();
 }
 
 /**
@@ -911,7 +1068,7 @@ function createAllergyHtml(dish) {
         .filter((allergy) => ALLERGY_ICONS[allergy])
         .map((allergy) => {
             const icon = ALLERGY_ICONS[allergy];
-            return `<span class="allergy-badge" title="${escapeHtml(icon.label)}" aria-label="${escapeHtml(icon.label)}">${icon.svg}</span>`;
+            return `<span class="allergy-badge" data-tooltip="${escapeHtml(icon.label)}" title="${escapeHtml(icon.label)}" aria-label="${escapeHtml(icon.label)}">${icon.svg}</span>`;
         })
         .join("");
 
@@ -930,11 +1087,17 @@ function createAllergyHtml(dish) {
  * @returns {string} Price HTML string
  */
 function createPriceHtml(dish, targetCurrency, originalCurrency) {
-    if (!dish.price) {
+    if (!dish.price && (dish.price_numeric == null || !originalCurrency)) {
         return "";
     }
 
-    const originalPriceFormatted = escapeHtml(dish.price);
+    // Use numeric value + corrected currency symbol when available, so correcting VND→THB updates symbol
+    const hasNumericAndCurrency = originalCurrency && dish.price_numeric != null;
+    const originalPriceFormatted = hasNumericAndCurrency
+        ? formatPrice(dish.price_numeric, originalCurrency)
+        : (dish.price ? escapeHtml(dish.price) : "");
+    if (!originalPriceFormatted) return "";
+
     let displayPrice = originalPriceFormatted;
 
     if (
@@ -1271,6 +1434,60 @@ function initEventListeners() {
         elements.newUploadBtn.addEventListener("click", startNewUpload);
     }
 
+    // Currency correction dropdown
+    if (elements.exchangeRateTrigger) {
+        elements.exchangeRateTrigger.addEventListener("click", (e) => {
+            e.stopPropagation();
+            toggleCurrencyDropdown();
+        });
+        elements.exchangeRateTrigger.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                toggleCurrencyDropdown();
+            }
+        });
+    }
+    document.addEventListener("click", (e) => {
+        if (!isCurrencyDropdownOpen()) return;
+        if (
+            elements.exchangeRateWrapper &&
+            elements.currencyCorrectionDropdown &&
+            !elements.exchangeRateWrapper.contains(e.target)
+        ) {
+            closeCurrencyDropdown();
+        }
+    });
+    document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && isCurrencyDropdownOpen()) {
+            closeCurrencyDropdown();
+            elements.exchangeRateTrigger?.focus();
+        }
+    });
+    if (elements.currencyCorrectionDropdown) {
+        elements.currencyCorrectionDropdown.addEventListener("click", (e) => {
+            const option = e.target.closest(".currency-correction-option");
+            if (option && option.dataset.currency) {
+                applyCurrencyCorrection(option.dataset.currency);
+            }
+        });
+        elements.currencyCorrectionDropdown.addEventListener("keydown", (e) => {
+            const options = elements.currencyCorrectionDropdown.querySelectorAll(".currency-correction-option");
+            if (options.length === 0) return;
+            const current = document.activeElement;
+            const idx = Array.from(options).indexOf(current);
+            if (e.key === "ArrowDown" && idx < options.length - 1) {
+                e.preventDefault();
+                options[idx + 1].focus();
+            } else if (e.key === "ArrowUp" && idx > 0) {
+                e.preventDefault();
+                options[idx - 1].focus();
+            } else if (e.key === "Enter" && current.classList.contains("currency-correction-option")) {
+                e.preventDefault();
+                if (current.dataset.currency) applyCurrencyCorrection(current.dataset.currency);
+            }
+        });
+    }
+
     // Settings modal events
     elements.settingsButton.addEventListener("click", openSettings);
     elements.closeSettings.addEventListener("click", closeSettingsModal);
@@ -1356,16 +1573,17 @@ function initEventListeners() {
 // ============================================================================
 
 /**
- * Initialize application.
+ * Initialize application. Loads currencies from API, then initializes settings and events.
  */
-function init() {
+async function init() {
+    await loadCurrencies();
     initSettings();
     initEventListeners();
 }
 
 // Start application when DOM is ready
 if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
+    document.addEventListener("DOMContentLoaded", () => init());
 } else {
     init();
 }

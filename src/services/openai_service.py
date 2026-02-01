@@ -227,7 +227,6 @@ def translate_menu_image(
     # Get cached result (dict) and reconstruct Pydantic model
     cached_dict = _cached_translate(image_data, prompt, model)
     openai_response = OpenAIResponse.model_validate(cached_dict)
-    print(openai_response)
 
     logger.info(
         f"Number of dishes: {len(openai_response.dishes)}, Language: {openai_response.source_language}, Currency: {openai_response.original_currency}, Country: {openai_response.country}"
@@ -260,6 +259,7 @@ def translate_menu_image(
                 original_text=dish.original_text,
                 pronunciation=dish.pronunciation,
                 price=dish.price,
+                price_numeric=dish.price_numeric,
                 converted_price=converted_price,
                 allergies=dish.allergies,
             )

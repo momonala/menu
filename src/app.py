@@ -14,6 +14,8 @@ from src.config import FLASK_PORT
 from src.config import MAX_UPLOAD_SIZE_MB
 from src.image_validation import ImageValidationError
 from src.image_validation import save_uploaded_image
+from src.services.forex_service import get_exchange_rate
+from src.services.forex_service import get_supported_currencies
 from src.services.image_search_brave import ImageSearchError
 from src.services.image_search_brave import cached_brave_search
 from src.services.openai_service import TranslationError
@@ -100,6 +102,31 @@ def translate_menu():
     finally:
         if image_path:
             image_path.unlink(missing_ok=True)
+
+
+@app.route("/api/currencies")
+def currencies():
+    """Return list of supported currencies (code + name) from the exchange rate API."""
+    currencies = get_supported_currencies()
+    return jsonify({"status": "success", "currencies": currencies})
+
+
+@app.route("/api/exchange-rate")
+def exchange_rate():
+    """Return exchange rate between two currencies.
+
+    Query params: from (source currency code), to (target currency code).
+    Returns JSON { "status": "success", "rate": <float> } or 400 on error.
+    """
+    from_currency = request.args.get("from", "").strip().upper()
+    to_currency = request.args.get("to", "").strip().upper()
+    if not from_currency or not to_currency:
+        return jsonify({"status": "error", "message": "Missing 'from' or 'to' currency parameter"}), 400
+    try:
+        rate = get_exchange_rate(from_currency, to_currency)
+        return jsonify({"status": "success", "rate": rate})
+    except ValueError as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
 
 
 @app.route("/api/fetch-images", methods=["POST"])
